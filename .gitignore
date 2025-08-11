@@ -56,9 +56,6 @@ ios/Flutter/Generated.xcconfig
 *.iws
 .idea/**
 
-# Generated assets and local demo images
-livedemoimages/
-
 # Flutter/Dart analysis
 .analysis_options
 .dart_tool/package_config.json
