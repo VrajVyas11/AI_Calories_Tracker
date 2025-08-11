@@ -1,0 +1,110 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-version
+symlinks/
+generated_plugin_registrant.dart
+
+# Pub specific
+**/pubspec.lock
+
+# Build outputs
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/Flutter/Flutter.xcarchive
+**/build/
+**/ios/Flutter/Flutter.framework
+**/macos/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# Android
+**/android/.gradle/
+**/android/app/build/
+**/android/build/
+**/android/local.properties
+**/android/key.properties
+**/android/*.keystore
+**/android/*.jks
+
+# Xcode / CocoaPods
+ios/Pods/
+ios/Podfile.lock
+ios/Runner.xcworkspace/
+ios/Flutter/Generated.xcconfig
+**/DerivedData/
+*.xcuserdatad
+*.xcuserdata
+*.xcscmblueprint
+
+# VS Code
+.vscode/
+.vscode/**
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea/**
+
+# Generated assets and local demo images
+livedemoimages/
+
+# Flutter/Dart analysis
+.analysis_options
+.dart_tool/package_config.json
+
+# Logs
+logs/
+*.log
+
+# Secrets and environment files (DO NOT commit)
+.env
+.env.*
+secrets.*
+*.pem
+*.p12
+*.crt
+*.key
+
+# macOS
+*.DS_Store
+
+# Windows
+Thumbs.db
+
+# Linux
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# Coverage
+coverage/
+
+# Flutter driver and integration test results
+integration_test/**/perfetto_trace/
+integration_test/**/trace/
+
+# Optional: lockfiles produced by IDE plugins
+.idea/*workspace.xml
+.idea/*tasks.xml
+
+# Optional: local build caches / tool state
+flutter_export_environment.sh
+
+# Ignore packaged snapshots used by CI or local debug
+*.snapshot
+
+# Keep this at the end to allow overrides in a repo-specific .gitignore.local
+!.gitignore.local
