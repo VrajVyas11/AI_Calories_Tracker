@@ -12,7 +12,7 @@ A beautiful, lightweight Flutter app that identifies foods from photos (Clarifai
 ## Demo Video & Images
  
 <p align="center">
-  <img src="livedemoimages/showcase.gif" alt="AI_Calories_Tracker demo" style="max-width:100%; width:360px; height:auto; border-radius:8px;" />
+  <img src="livedemoimages/showcase.gif" alt="AI_Calories_Tracker demo" style="max-width:100%; width:260px; height:560px; border-radius:8px;" />
 </p>
 
 <img src="./livedemoimages/1.png" width="230" style="margin-right: 10px;" />&nbsp;&nbsp; <img src="./livedemoimages/2.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/3.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/4.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/5.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/6.png" width="230" style="margin-right: 100px;" />
