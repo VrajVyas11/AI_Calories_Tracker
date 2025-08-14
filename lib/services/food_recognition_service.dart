@@ -31,8 +31,7 @@ class FoodRecognitionService {
 
   static String get _clarifaiEndpoint {
     // fallback to the known endpoint if you prefer
-    return dotenv.env['CLARIFAI_API_ENDPOINT'] ??
-        'https://api.clarifai.com/v2/models/food-item-recognition/versions/1d5fd481e0cf4826aa72ec3ff049e044/outputs';
+    return dotenv.env['CLARIFAI_API_ENDPOINT'] ?? '';
   }
       
 
