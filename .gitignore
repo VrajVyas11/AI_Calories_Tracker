@@ -105,3 +105,8 @@ flutter_export_environment.sh
 
 # Keep this at the end to allow overrides in a repo-specific .gitignore.local
 !.gitignore.local
+
+
+
+# User Files
+lib/services/food_recognition_service.dart
