@@ -5,10 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_entry.dart';
 import '../models/user_profile.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SupabaseService {
-  static const String _url = 'https://veqxpzkhfsxorysnzdft.supabase.co';
-  static const String _anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlcXhwemtoZnN4b3J5c256ZGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxNjEwMDcsImV4cCI6MjA3MDczNzAwN30.Fkz1GMjXEdmgStDTUPxw-KylxePCdCPCwhN7-x6u_wI';
+  static final String? _url = dotenv.env['SUPABASE_URL'] ;
+  static final String _anonKey = (dotenv.env['SUPABASE_ANONKEY']) as String;
 
   static String? _accessToken;
   static String? _userId;
