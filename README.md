@@ -1,234 +1,258 @@
-
 # AI Calories Tracker
 
-[![Flutter](https://img.shields.io/badge/Flutter-%E2%89%A5%203.0-blue)](https://flutter.dev)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Desktop-green)]()
-[![License](https://img.shields.io/badge/License-MIT-lightgrey)](./LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-%E2%89%A5%203.0-blue)](https://flutter.dev)  [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Desktop-green)]()  [![License](https://img.shields.io/badge/License-MIT-lightgrey)](./LICENSE)
 
-A beautiful, lightweight Flutter app that identifies foods from photos (Clarifai), fetches nutrition facts (USDA FoodData Central), and helps you track daily calories and macros. Designed for fast local dev with dotenv and safe CI/production with --dart-define.
+A lightweight Flutter app that recognizes foods from photos (Clarifai), fetches nutrition facts (USDA FoodData Central), and helps you track daily calories and macros. Uses Supabase as backend for auth and storing meals.
 
 ---
 
-## Demo Video & Images
- 
+## Demo
+
 <p align="center">
   <img src="livedemoimages/showcase.gif" alt="AI_Calories_Tracker demo" style="max-width:100%; width:260px; height:560px; border-radius:8px;" />
 </p>
 
-<img src="./livedemoimages/1.png" width="230" style="margin-right: 10px;" />&nbsp;&nbsp; <img src="./livedemoimages/2.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/3.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/4.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/5.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/6.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/7.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/8.png" width="230" style="margin-right: 100px;" />&nbsp;&nbsp; <img src="./livedemoimages/9.png" width="230" style="margin-right: 100px;" />
+<img src="./livedemoimages/1.png" width="230" style="margin-right: 10px;" />   <img src="./livedemoimages/2.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/3.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/4.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/5.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/6.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/7.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/8.png" width="230" style="margin-right: 100px;" />   <img src="./livedemoimages/9.png" width="230" style="margin-right: 100px;" />
 
 ---
 
-Table of Contents
+## Table of Contents
+
 - 🔧 Quick Start
-- 🧩 What it does
-- 🏗 Architecture & Key Files
-- 🔐 Configuration: .env & CI secrets
+- 🧩 Features
+- 🏗 Architecture & Important Files
+- 🔐 Configuration (.env & CI)
 - 🚀 Run: Dev vs Production
 - 🧠 How recognition & nutrition flow works
 - 🛠 Troubleshooting & Tips
-- 🔒 Security best practices
 - 🧪 Testing & CI
-- ✨ Roadmap & Extensibility
+- ✨ Roadmap
 - 🤝 Contributing
 - 📄 License & Credits
 
 ---
 
-🔧 Quick Start (30s)
+## 🔧 Quick Start (30s)
+
 1. Clone:
-   git clone <repo-url>
-   cd ai_meal_planner
+```bash
+git clone <repo-url>
+cd ai_meal_planner
+```
 
-2. Install deps:
-   flutter pub get
+2. Install dependencies:
+```bash
+flutter pub get
+```
 
-3. Create local `.env` (project root — DO NOT COMMIT):
-   ```
-   CLARIFAI_API_KEY=sk_test_xxx
-   USDA_API_KEY=your_usda_key
-   CLARIFAI_API_ENDPOINT=https://api.clarifai.com/vx/models/food-item-recognition/versions/xxxxxxxx/outputs
-   ```
+3. Create local `.env` (project root — DO NOT COMMIT). Example keys the app looks for:
+```
+CLARIFAI_API_ENDPOINT=
+CLARIFAI_API_KEY=
+USDA_API_KEY=
+SUPABASE_URL=
+SUPABASE_ANONKEY=
+```
 
-4. (Optional dev) Add `.env` to assets in pubspec.yaml:
-   ```yaml
-   flutter:
-     assets:
-       - .env
-   ```
+4. (Optional dev) Add `.env` to `pubspec.yaml` assets (use only for local development):
+```yaml
+flutter:
+  assets:
+    - .env
+```
 
 5. Clean & Run:
-   flutter clean
-   flutter run
+```bash
+flutter clean
+flutter run
+```
 
-> Note: Add `.env` to `.gitignore`. For production use --dart-define (see below).
-
----
-
-🧩 What it does
-- Detects food items in photos using Clarifai food-item-recognition model.
-- Fetches nutrient details (calories, protein, carbs, fat, fiber) from USDA FDC.
-- Presents detected items with confidence scores; shows nutrition per 100g.
-- Lets you adjust serving size and save meals to daily log.
-- Persists local data (SharedPreferences) and supports export/share.
-- Has offline fallback nutrition estimates and detection heuristics when APIs fail.
+> Note: For production builds, use `--dart-define` to pass secrets (see below).
 
 ---
 
-🏗 Architecture & Key Files
+## 🧩 Features
+
+- Food recognition via Clarifai (image -> labels + confidence).
+- Nutrition lookup via USDA FoodData Central (per-100g data).
+- Proportion estimation per detected item (confidence × calorie density).
+- Adjust serving (grams) and add to daily meal log.
+- Persist meals to Supabase (per-user) and local state update.
+- Offline fallbacks: simple recognition heuristics and estimated nutrition map.
+- Non-blocking notifications (SnackBar) for sign-in and operations.
+- Global scaffold messenger to avoid context issues when showing snackbars.
+
+---
+
+## 🏗 Architecture & Key Files
+
 - lib/
-  - main.dart — app entry, dotenv loader
-  - services/food_recognition_service.dart — Clarifai + USDA logic, fallbacks
-  - models/ — FoodItem, NutritionInfo, MealEntry
-  - ui/ — pages and widgets (Scan, Dashboard, History)
-- pubspec.yaml — dependencies & assets
-- .env (local dev) — API keys (ignored)
-- livedemoimages/ — sample images (ignored by default)
-
-Core technologies:
-- Flutter + Dart
-- Provider for state management
-- flutter_dotenv for local dev config
-- http package for REST calls
-- SharedPreferences for local persistence
-
----
-
-🔐 Configuration: .env & CI secrets
-
-Local dev (easy):
-- Create `.env` at project root (same folder as pubspec.yaml).
-- Add to `.gitignore`.
-
-Production / CI (secure - recommended):
-- Use build-time define:
-  flutter build apk --release \
-    --dart-define=CLARIFAI_API_KEY=sk_live_xxx \
-    --dart-define=USDA_API_KEY=xxxx
-
-Code supports both:
-- First tries dotenv.env,
-- Falls back to String.fromEnvironment('--dart-define') if dotenv is absent.
-
-Important: Do not bundle production secrets in a distributed app.
+  - main.dart — app entry, ScaffoldMessenger key
+  - services/
+    - supabase_service.dart — Supabase REST auth, profile, meals, cache
+    - food_recognition_service.dart — Clarifai + USDA + fallbacks
+  - models/
+    - calories_tracker_model.dart — Provider state, image analysis, persistence
+    - meal_entry.dart, user_profile.dart — data models
+  - screens/
+    - auth_screen.dart — sign in / sign up (non-blocking SnackBar notifications)
+    - scan_food_page.dart — image picker, analyze, add-to-meal dialog
+    - main_page.dart — tabs: Scan / Dashboard / History
+  - widgets/
+    - user_profile_sheet.dart — user info and sign out
+- livedemoimages/ — demo images
+- README.md — this file
 
 ---
 
-🚀 Run — Dev vs Production
+## 🔐 Configuration: .env & CI
 
-Development (fast iteration):
-- Use `.env` bundled as asset for convenience (not for production).
-- Full restart required after changing `.env` (dotenv.load runs in main).
+Local development (convenience):
+- Create `.env` with the keys above and add to `.gitignore`.
 
 Production (secure):
-- Don’t bundle `.env`.
-- Provide keys via CI secrets using --dart-define.
-- Example GitHub Actions snippet:
-  ```yaml
-  - name: Build APK
-    run: flutter build apk --release --dart-define=CLARIFAI_API_KEY=${{ secrets.CLARIFAI_API_KEY }} --dart-define=USDA_API_KEY=${{ secrets.USDA_API_KEY }}
-  ```
+- Use `--dart-define` and CI secret store. Example:
+```bash
+flutter build apk --release \
+  --dart-define=CLARIFAI_API_KEY=${CLARIFAI_API_KEY} \
+  --dart-define=USDA_API_KEY=${USDA_API_KEY} \
+  --dart-define=SUPABASE_URL=${SUPABASE_URL} \
+  --dart-define=SUPABASE_ANONKEY=${SUPABASE_ANONKEY}
+```
+
+The app checks dotenv first, then uses compile-time defines if dotenv isn't present.
 
 ---
 
-🧠 Recognition & Nutrition Flow (summary)
-1. User takes/selects photo.
-2. App encodes image (base64) and sends to Clarifai model endpoint.
-3. Clarifai returns concepts (labels + confidence).
-4. App picks top N labels (configurable threshold).
-5. For each label, the app calls USDA FDC to get nutrient data. If USDA fails, the app uses local estimated nutrition map.
-6. UI displays detected foods, confidence, and nutrition (per 100g). Users can adjust serving multiplier and save to log.
+## 🚀 Run — Dev vs Production
 
-Design notes:
-- Show confidence to the user and allow manual correction (recommended UX improvement).
-- Cap number of simultaneous USDA queries; cache results to reduce rate usage.
+Development:
+- Use `.env` (only locally).
+- Full restart needed after env changes.
+
+Production:
+- Do not bundle `.env`.
+- Inject keys at build time with CI secrets + `--dart-define`.
 
 ---
 
-🛠 Troubleshooting & Tips
+## 🧠 Recognition & Nutrition Flow (brief)
 
-Issue: ".env not found" on device/emulator
-- Running app on device: CWD is `/`. The app can't read host filesystem. Either:
-  - Bundle `.env` as an asset for dev, or
-  - Use --dart-define.
-
-Issue: No editor suggestions / analysis errors
-- Ensure Dart & Flutter extensions installed.
-- Run:
-  flutter doctor -v
-  flutter pub get
-  Restart analysis server or IDE.
-
-Issue: Clarifai labels incorrect
-- Verify API key and endpoint.
-- Inspect API response (log outputs).
-- Present top few labels to user to confirm.
-
-Network timeouts / rate limits
-- Add retry/backoff and caching for repeated USDA/Clarifai requests.
-- Respect API limits in production.
+1. User picks/takes a photo.
+2. App encodes the image and sends to Clarifai endpoint.
+3. Clarifai returns labels + confidence.
+4. For each label, the app queries USDA for nutrients (fallback to local map if needed).
+5. Proportion for each item computed as: score = confidence × calories_per_100g → proportion = score / sum(scores).
+6. User selects serving grams (G); macros per item = (G × proportion / 100) × macros_per_100g.
+7. When saving, the app ensures `user_profiles` exists, inserts into `meals` table in Supabase, then reloads today's meals.
 
 ---
 
-🔒 Security best practices
-- Never commit real API keys to Git.
-- Use CI secret stores and --dart-define for production builds.
-- For highest security, move API interactions requiring a secret to your backend and issue short-lived tokens to the app.
-- Audit logs to detect anomalous API usage.
+## 🛠 Troubleshooting & Tips
+
+- If `saveMeal` fails with `404`: ensure `meals` table exists in Supabase.
+- If it fails with `409` (FK): ensure the `user_profiles` row exists or use the app's profile creation flow (app will attempt to create it).
+- If `.env` not read on device: bundle as asset for dev or use `--dart-define`.
+- Check debug logs: SupabaseService prints `saveMeal status` and `saveMeal body` in debug.
 
 ---
 
-🧪 Testing & CI
-- Unit tests:
-  - Nutrition parsing (USDA responses).
-  - Fallback heuristics.
-- Widget tests:
-  - Detection results render, adding meal log behavior.
-- CI pipeline recommendations:
-  - Run flutter analyze, flutter test.
-  - Use GitHub Actions / GitLab CI to inject secrets and build release artifacts.
+## 🧪 Testing & CI
 
-Suggested GitHub Actions steps:
-- checkout, set up Flutter, flutter pub get, flutter analyze, flutter test
-- build with --dart-define using secrets
+- Unit tests: nutrition parsing, proportion math.
+- Widget tests: scan -> analyze -> add -> persisted meal flows.
+- CI suggestions:
+  - `flutter analyze`
+  - `flutter test`
+  - Build with `--dart-define` using secrets.
 
 ---
 
-✨ Roadmap & Extensibility
+## ✨ Roadmap
+
 Short-term:
-- Manual confirmation/edit of detected foods before save
-- Barcode / packaged food lookup integration
-- Improve UI for multi-item plates
+- Manual edit of detected items and portion split UI.
+- Barcode lookup for packaged foods.
 
 Long-term:
-- On-device model (TF Lite) for offline recognition
-- Cloud sync (user accounts and cross-device history)
-- Personalized portion estimator (vision-based serving estimation)
+- On-device model (TF Lite) for offline recognition.
+- Cross-device sync & background sync.
+- Health integrations (Google Fit / Apple Health).
 
 ---
 
-🤝 Contributing
-We welcome contributions! Please:
-1. Fork → branch (feat/...) → commit → PR.
-2. Add tests for new behavior.
-3. Keep secrets out of pull requests.
-4. Follow code style & provide clear PR description.
+## SQL & Supabase Setup (quick)
 
-Add a `CONTRIBUTING.md` for further guidelines if desired.
+Run in Supabase SQL editor (creates tables and example RLS policies):
+
+```sql
+create table if not exists public.user_profiles (
+  id uuid primary key,
+  email text not null,
+  full_name text,
+  calorie_goal numeric default 2000,
+  protein_goal numeric default 150,
+  carbs_goal numeric default 250,
+  fat_goal numeric default 67,
+  created_at timestamptz default now(),
+  updated_at timestamptz
+);
+
+create table if not exists public.meals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.user_profiles(id) on delete cascade,
+  date text not null,
+  timestamp timestamptz default now(),
+  food_names text[],
+  calories numeric,
+  protein numeric,
+  carbs numeric,
+  fat numeric,
+  serving_size text,
+  image_url text
+);
+
+create table if not exists public.nutrition_cache (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.user_profiles(id),
+  food_name text,
+  nutrition_data jsonb,
+  cached_at timestamptz default now()
+);
+
+alter table public.meals enable row level security;
+alter table public.user_profiles enable row level security;
+alter table public.nutrition_cache enable row level security;
+
+create policy "meals_user_policy" on public.meals
+  for all
+  using ( auth.uid()::uuid = user_id )
+  with check ( auth.uid()::uuid = user_id );
+
+create policy "profiles_user_policy" on public.user_profiles
+  for all
+  using ( auth.uid()::uuid = id )
+  with check ( auth.uid()::uuid = id );
+
+create policy "nutrition_cache_user_policy" on public.nutrition_cache
+  for all
+  using ( auth.uid()::uuid = user_id )
+  with check ( auth.uid()::uuid = user_id );
+```
 
 ---
 
-📄 License & Credits
-- License: MIT — add LICENSE file at repo root.
-- Clarifai: model used under Clarifai terms.
-- USDA FoodData Central: data used under FDC terms.
+## 🤝 Contributing
+
+- Fork → create branch → make changes → open PR.
+- Add tests for new features.
+- Keep secrets out of commits.
+- Use clear commit messages; see project Git history for examples.
 
 ---
 
-Contact / Support
-Open an issue with:
-- Repro steps
-- Example images
-- Logs / stack traces
+## 📄 License & Credits
 
-Thanks for trying AI_Calories_Tracker — contributions, feedback, and fixes are most welcome! 🍏🥗📸
+- MIT License — see LICENSE file.
+- Uses Clarifai model and USDA FoodData Central per their terms.
+- Supabase for auth and persistence.
