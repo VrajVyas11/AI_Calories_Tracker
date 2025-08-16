@@ -12,6 +12,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
+  fl_chart: ^0.60.0
 
   flutter_dotenv: ^5.0.2
   # optionally for secure runtime storage:

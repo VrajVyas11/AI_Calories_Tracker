@@ -1,4 +1,6 @@
 // lib/services/supabase_service.dart
+// ignore_for_file: unused_local_variable
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -257,6 +259,73 @@ class SupabaseService {
     return [];
   }
 
+  // New method to get meals for date range
+  static Future<List<MealEntry>> getMealsForDateRange(DateTime startDate, DateTime endDate) async {
+    if (!await isAuthenticated()) return [];
+
+    try {
+      final startStr = startDate.toIso8601String().substring(0, 10);
+      final endStr = endDate.toIso8601String().substring(0, 10);
+      final response = await http.get(
+        Uri.parse('$_url/rest/v1/meals?user_id=eq.$_userId&date=gte.$startStr&date=lte.$endStr&order=date.desc,timestamp.desc'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => MealEntry.fromSupabaseJson(json)).toList();
+      } else {
+        if (kDebugMode) print('GetMealsForDateRange non-200: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      if (kDebugMode) print('Get meals for date range error: $e');
+    }
+
+    return [];
+  }
+
+  // New method to get daily summaries for analytics
+  static Future<List<Map<String, dynamic>>> getDailySummaries(DateTime startDate, DateTime endDate) async {
+    if (!await isAuthenticated()) return [];
+
+    try {
+      final startStr = startDate.toIso8601String().substring(0, 10);
+      final endStr = endDate.toIso8601String().substring(0, 10);
+      
+      // Get all meals in date range and group by date
+      final meals = await getMealsForDateRange(startDate, endDate);
+      final Map<String, Map<String, dynamic>> dailySummaries = {};
+
+      for (final meal in meals) {
+        final date = meal.timestamp.toIso8601String().substring(0, 10);
+        if (!dailySummaries.containsKey(date)) {
+          dailySummaries[date] = {
+            'date': date,
+            'total_calories': 0.0,
+            'total_protein': 0.0,
+            'total_carbs': 0.0,
+            'total_fat': 0.0,
+            'meal_count': 0,
+          };
+        }
+
+        dailySummaries[date]!['total_calories'] += meal.calories;
+        dailySummaries[date]!['total_protein'] += meal.protein;
+        dailySummaries[date]!['total_carbs'] += meal.carbs;
+        dailySummaries[date]!['total_fat'] += meal.fat;
+        dailySummaries[date]!['meal_count'] += 1;
+      }
+
+      return dailySummaries.values.toList();
+    } catch (e) {
+      if (kDebugMode) print('Get daily summaries error: $e');
+      return [];
+    }
+  }
+
   static Future<bool> updateGoals(double calories, double protein, double carbs, double fat) async {
     if (!await isAuthenticated()) return false;
 
@@ -279,6 +348,35 @@ class SupabaseService {
       return response.statusCode == 204 || response.statusCode == 200;
     } catch (e) {
       if (kDebugMode) print('Update goals error: $e');
+      return false;
+    }
+  }
+
+  // New method to complete onboarding
+  static Future<bool> completeOnboarding(double calories, double protein, double carbs, double fat) async {
+    if (!await isAuthenticated()) return false;
+
+    try {
+      final response = await http.patch(
+        Uri.parse('$_url/rest/v1/user_profiles?id=eq.$_userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'calorie_goal': calories,
+          'protein_goal': protein,
+          'carbs_goal': carbs,
+          'fat_goal': fat,
+          'onboarding_completed': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Complete onboarding error: $e');
       return false;
     }
   }
@@ -317,7 +415,7 @@ class SupabaseService {
         if (kDebugMode) print('ensureUserProfileExists: failed to fetch auth user: $e');
       }
 
-      // Create profile row
+      // Create profile row with onboarding_completed = false
       final createResp = await http.post(Uri.parse('$_url/rest/v1/user_profiles'), headers: {
         'Content-Type': 'application/json',
         'apikey': _anonKey,
@@ -331,6 +429,7 @@ class SupabaseService {
         'protein_goal': 150.0,
         'carbs_goal': 250.0,
         'fat_goal': 67.0,
+        'onboarding_completed': false,
         'created_at': DateTime.now().toIso8601String(),
       }));
 
@@ -402,6 +501,7 @@ class SupabaseService {
           proteinGoal: 150.0,
           carbsGoal: 250.0,
           fatGoal: 67.0,
+          onboardingCompleted: false,
           createdAt: created,
           updatedAt: null,
         );
@@ -412,6 +512,7 @@ class SupabaseService {
 
     return null;
   }
+
 
   static Future<bool> deleteMeal(String mealId) async {
     if (!await isAuthenticated()) return false;
