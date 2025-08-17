@@ -1,44 +1,48 @@
 // lib/widgets/auth_wrapper.dart
+import 'package:ai_calories_tracker/screens/splash_screen.dart'
+    show SplashScreen;
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
+import 'package:provider/provider.dart';
+import '../models/calories_tracker_model.dart';
 import '../screens/auth_screen.dart';
+import '../screens/onboarding_screen.dart';
 import '../screens/main_page.dart';
 
-class AuthWrapper extends StatefulWidget {
+class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  bool _loading = true;
-  bool _isAuthenticated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuth();
-  }
-
-  Future<void> _checkAuth() async {
-    // Use SupabaseService.isAuthenticated() — does not depend on Provider
-    final isAuth = await SupabaseService.isAuthenticated();
-    if (!mounted) return;
-    setState(() {
-      _isAuthenticated = isAuth;
-      _loading = false;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    return Consumer<CaloriesTrackerModel>(
+      builder: (context, model, _) {
+        // Show loading while checking auth state
+        if (model.isCheckingAuth) {
+          return const Scaffold(
+            body: Center(
+              child: SplashScreen(),
+            ),
+          );
+        }
 
-    // Provider is available (because provider wraps MaterialApp in main.dart).
-    // We can safely return MainPage (which will use Provider).
-    return _isAuthenticated ? const MainPage() : const AuthScreen();
+        // if (!model.isAuthenticated) {
+        //   return const SplashScreen(
+        //       autoNavigate: true, displayDuration: Duration(milliseconds: 900));
+        // }
+
+        // Not authenticated - show auth screen
+        if (!model.isAuthenticated) {
+          return const AuthScreen();
+        }
+
+        // Authenticated but no user profile or onboarding not completed
+        if (model.currentUser == null ||
+            !model.currentUser!.onboardingCompleted) {
+          return const OnboardingScreen();
+        }
+
+        // Fully authenticated and onboarded - show main app
+        return const MainPage();
+      },
+    );
   }
 }

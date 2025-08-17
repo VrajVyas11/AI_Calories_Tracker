@@ -1,9 +1,10 @@
 // lib/screens/main_page.dart
-// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member, deprecated_member_use
 import 'package:ai_calories_tracker/models/calories_tracker_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../models/meal_entry.dart';
 import '../screens/scan_food_page.dart';
 import '../widgets/user_profile_sheet.dart';
@@ -19,17 +20,10 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
-    // Load analytics data when the page loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final model = context.read<CaloriesTrackerModel>();
-      model.loadAnalyticsData(period: '');
-    });
   }
 
   @override
@@ -269,396 +263,428 @@ class _ProgressCard extends StatelessWidget {
   }
 }
 
-/// ------------------ AnalyticsPage ------------------
+/// ------------------ AnalyticsPage (New Enhanced History) ------------------
 
-class AnalyticsPage extends StatefulWidget {
+class AnalyticsPage extends StatelessWidget {
   const AnalyticsPage({super.key});
-
-  @override
-  State<AnalyticsPage> createState() => _AnalyticsPageState();
-}
-
-class _AnalyticsPageState extends State<AnalyticsPage> {
-  String _selectedPeriod = '7 days';
-  final List<String> _periods = ['7 days', '30 days', '90 days'];
 
   @override
   Widget build(BuildContext context) {
     final model = context.watch<CaloriesTrackerModel>();
-    
+    final averageNutrients = model.getAverageNutrients();
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Period selector
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Analytics',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              DropdownButton<String>(
-                value: _selectedPeriod,
-                items: _periods.map((period) => DropdownMenuItem(
-                  value: period,
-                  child: Text(period),
-                )).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedPeriod = value);
-                    model.loadAnalyticsData(period: value);
-                  }
-                },
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Overview stats
-          _buildOverviewStats(model),
-          
-          const SizedBox(height: 20),
-          
-          // Goals achievement
-          _buildGoalsAchievement(model),
-          
-          const SizedBox(height: 20),
-          
-          // Recent trends
-          Text(
-            'Recent Activity',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          Expanded(
-            child: model.isLoadingAnalytics
-                ? const Center(child: CircularProgressIndicator())
-                : model.dailySummaries.isEmpty
-                    ? _buildEmptyState(context)
-                    : _buildActivityList(model),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewStats(CaloriesTrackerModel model) {
-    final totalDays = model.dailySummaries.length;
-    final avgCalories = totalDays > 0 
-        ? model.dailySummaries.map((s) => s['total_calories'] as double).reduce((a, b) => a + b) / totalDays
-        : 0.0;
-    final totalMeals = model.dailySummaries.fold(0, (sum, s) => sum + (s['meal_count'] as int));
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Overview ($_selectedPeriod)',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
+            // Overview Stats
+            Text('Overview', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _StatColumn(
-                  label: 'Days Tracked',
-                  value: totalDays.toString(),
-                  icon: Icons.calendar_today,
+                Expanded(
+                  child: _StatCard(
+                    title: 'Goal Hit Rate',
+                    value: '${model.goalHitPercentage.round()}%',
+                    subtitle: '${model.goalHitDays}/${model.totalTrackedDays} days',
+                    icon: Icons.track_changes,
+                    color: Colors.green,
+                  ),
                 ),
-                _StatColumn(
-                  label: 'Avg Calories',
-                  value: avgCalories.round().toString(),
-                  icon: Icons.local_fire_department,
-                ),
-                _StatColumn(
-                  label: 'Total Meals',
-                  value: totalMeals.toString(),
-                  icon: Icons.restaurant_menu,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    title: 'Avg Calories',
+                    value: '${averageNutrients['calories']?.round() ?? 0}',
+                    subtitle: 'per day',
+                    icon: Icons.local_fire_department,
+                    color: Colors.orange,
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
+            
+            const SizedBox(height: 24),
 
-  Widget _buildGoalsAchievement(CaloriesTrackerModel model) {
-    final user = model.currentUser;
-    if (user == null) return const SizedBox.shrink();
-    
-    int calorieGoalDays = 0;
-    int proteinGoalDays = 0;
-    int carbsGoalDays = 0;
-    int fatGoalDays = 0;
-    
-    for (final summary in model.dailySummaries) {
-      final calories = summary['total_calories'] as double;
-      final protein = summary['total_protein'] as double;
-      final carbs = summary['total_carbs'] as double;
-      final fat = summary['total_fat'] as double;
-      
-      if (calories >= user.calorieGoal * 0.9 && calories <= user.calorieGoal * 1.1) calorieGoalDays++;
-      if (protein >= user.proteinGoal * 0.9) proteinGoalDays++;
-      if (carbs >= user.carbsGoal * 0.9 && carbs <= user.carbsGoal * 1.1) carbsGoalDays++;
-      if (fat >= user.fatGoal * 0.9 && fat <= user.fatGoal * 1.1) fatGoalDays++;
-    }
-    
-    final totalDays = model.dailySummaries.length;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Goal Achievement',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildGoalProgress('Calories', calorieGoalDays, totalDays, Colors.orange),
+            // Weekly Calories Chart
+            Text('Weekly Calories', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _buildGoalProgress('Protein', proteinGoalDays, totalDays, Colors.red),
-            const SizedBox(height: 12),
-            _buildGoalProgress('Carbs', carbsGoalDays, totalDays, Colors.blue),
-            const SizedBox(height: 12),
-            _buildGoalProgress('Fat', fatGoalDays, totalDays, Colors.purple),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGoalProgress(String label, int achievedDays, int totalDays, Color color) {
-    final percentage = totalDays > 0 ? (achievedDays / totalDays) : 0.0;
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.bodyMedium),
-            Text(
-              '$achievedDays/$totalDays days (${(percentage * 100).round()}%)',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        LinearProgressIndicator(
-          value: percentage,
-          backgroundColor: color.withOpacity(0.2),
-          valueColor: AlwaysStoppedAnimation(color),
-        ),
-      ],
-    );
-  }
-}
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.analytics_outlined,
-            size: 64,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No data available',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start logging meals to see your analytics',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityList(CaloriesTrackerModel model) {
-    return ListView.builder(
-      itemCount: model.dailySummaries.length,
-      itemBuilder: (context, index) {
-        final summary = model.dailySummaries[index];
-        final date = DateTime.parse(summary['date'] as String);
-        final calories = summary['total_calories'] as double;
-        final protein = summary['total_protein'] as double;
-        final carbs = summary['total_carbs'] as double;
-        final fat = summary['total_fat'] as double;
-        final mealCount = summary['meal_count'] as int;
-        
-        final user = model.currentUser;
-        final calorieGoal = user?.calorieGoal ?? 2000;
-        final calorieProgress = calories / calorieGoal;
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ExpansionTile(
-            leading: CircleAvatar(
-              backgroundColor: _getProgressColor(calorieProgress).withOpacity(0.1),
-              child: Text(
-                '${(calorieProgress * 100).round()}%',
-                style: TextStyle(
-                  color: _getProgressColor(calorieProgress),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: SizedBox(
+                  height: 200,
+                  child: _WeeklyCaloriesChart(data: model.getWeeklyCaloriesData()),
                 ),
               ),
             ),
-            title: Text(
-              _formatDate(date),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+
+            const SizedBox(height: 24),
+
+            // Average Nutrients
+            Text('30-Day Averages', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _NutrientCard(
+                    label: 'Protein',
+                    value: averageNutrients['protein']?.round() ?? 0,
+                    goal: model.proteinGoal.round(),
+                    unit: 'g',
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _NutrientCard(
+                    label: 'Carbs',
+                    value: averageNutrients['carbs']?.round() ?? 0,
+                    goal: model.carbsGoal.round(),
+                    unit: 'g',
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
             ),
-            subtitle: Text(
-              '$mealCount meals • ${calories.round()} kcal',
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _NutrientCard(
+                    label: 'Fat',
+                    value: averageNutrients['fat']?.round() ?? 0,
+                    goal: model.fatGoal.round(),
+                    unit: 'g',
+                    color: Colors.purple,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _GoalsSummaryCard(model: model),
+                ),
+              ],
             ),
-            children: [
-              Padding(
+
+            const SizedBox(height: 24),
+
+            // Today's Summary
+            Text('Today\'s Summary', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _NutrientInfo(
-                          label: 'Calories',
-                          value: calories.round().toString(),
-                          unit: 'kcal',
-                          color: Colors.orange,
+                        _StatColumn(
+                          label: 'Meals', 
+                          value: model.todaysMeals.length.toString(), 
+                          icon: Icons.restaurant_menu
                         ),
-                        _NutrientInfo(
-                          label: 'Protein',
-                          value: protein.round().toString(),
-                          unit: 'g',
-                          color: Colors.red,
+                        _StatColumn(
+                          label: 'Calories', 
+                          value: model.dailyCalories.round().toString(), 
+                          icon: Icons.local_fire_department
                         ),
-                        _NutrientInfo(
-                          label: 'Carbs',
-                          value: carbs.round().toString(),
-                          unit: 'g',
-                          color: Colors.blue,
-                        ),
-                        _NutrientInfo(
-                          label: 'Fat',
-                          value: fat.round().toString(),
-                          unit: 'g',
-                          color: Colors.purple,
+                        _StatColumn(
+                          label: 'Progress', 
+                          value: '${((model.dailyCalories / model.calorieGoal) * 100).round()}%', 
+                          icon: Icons.trending_up
                         ),
                       ],
                     ),
-                    if (user != null) ...[
-                      const SizedBox(height: 16),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Goal Progress',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MiniProgressBar(
-                              label: 'Cal',
-                              current: calories,
-                              goal: user.calorieGoal,
-                              color: Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _MiniProgressBar(
-                              label: 'Pro',
-                              current: protein,
-                              goal: user.proteinGoal,
-                              color: Colors.red,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _MiniProgressBar(
-                              label: 'Car',
-                              current: carbs,
-                              goal: user.carbsGoal,
-                              color: Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _MiniProgressBar(
-                              label: 'Fat',
-                              current: fat,
-                              goal: user.fatGoal,
-                              color: Colors.purple,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                   ],
                 ),
               ),
-            ],
-          ),
-        );
-      },
+            ),
+
+            const SizedBox(height: 16),
+
+            // Quick Actions
+            Row(
+              children: [
+                Expanded(
+                  child: _QuickActionCard(
+                    icon: Icons.download, 
+                    label: 'Export Data', 
+                    onTap: () => _exportData(context, model)
+                  )
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuickActionCard(
+                    icon: Icons.share, 
+                    label: 'Share Progress', 
+                    onTap: () => _shareProgress(context, model)
+                  )
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuickActionCard(
+                    icon: Icons.insights, 
+                    label: 'View Goals', 
+                    onTap: () => _showGoalDetails(context, model)
+                  )
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Recent Meals
+            Text('Today\'s Meals', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            
+            if (model.todaysMeals.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.restaurant_menu, size: 48, color: Theme.of(context).colorScheme.outline),
+                        const SizedBox(height: 8),
+                        Text('No meals recorded today', style: Theme.of(context).textTheme.bodyLarge),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...model.todaysMeals.asMap().entries.map((entry) {
+                final index = entry.key;
+                final meal = entry.value;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ExpansionTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.orange.withOpacity(0.2),
+                      child: Text('${meal.calories.round()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    title: Text(meal.foodNames.join(', ')),
+                    subtitle: Text('${meal.servingSize} • ${TimeOfDay.fromDateTime(meal.timestamp).format(context)}'),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _NutrientInfo(
+                                  label: 'Calories',
+                                  value: meal.calories.round().toString(),
+                                  unit: 'kcal',
+                                  color: Colors.orange,
+                                ),
+                                _NutrientInfo(
+                                  label: 'Protein',
+                                  value: meal.protein.round().toString(),
+                                  unit: 'g',
+                                  color: Colors.red,
+                                ),
+                                _NutrientInfo(
+                                  label: 'Carbs',
+                                  value: meal.carbs.round().toString(),
+                                  unit: 'g',
+                                  color: Colors.blue,
+                                ),
+                                _NutrientInfo(
+                                  label: 'Fat',
+                                  value: meal.fat.round().toString(),
+                                  unit: 'g',
+                                  color: Colors.purple,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton.tonalIcon(
+                              onPressed: () => _confirmDeleteMeal(context, model, index),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete Meal'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.red.withOpacity(0.1),
+                                foregroundColor: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
     );
   }
 
-  Color _getProgressColor(double progress) {
-    if (progress < 0.8) return Colors.red;
-    if (progress < 1.2) return Colors.green;
-    return Colors.orange;
+  void _exportData(BuildContext context, CaloriesTrackerModel model) {
+    final exportData = {
+      'date': DateTime.now().toIso8601String().substring(0, 10),
+      'daily_totals': {
+        'calories': model.dailyCalories,
+        'protein': model.dailyProtein,
+        'carbs': model.dailyCarbs,
+        'fat': model.dailyFat
+      },
+      'goals': {
+        'calories': model.calorieGoal,
+        'protein': model.proteinGoal,
+        'carbs': model.carbsGoal,
+        'fat': model.fatGoal
+      },
+      'analytics': {
+        'goal_hit_rate': model.goalHitPercentage,
+        'tracked_days': model.totalTrackedDays,
+        'goal_hit_days': model.goalHitDays
+      },
+      'meals': model.todaysMeals.map((m) => m.toJson()).toList(),
+    };
+    Clipboard.setData(ClipboardData(text: exportData.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Data exported to clipboard'))
+    );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final dateOnly = DateTime(date.year, date.month, date.day);
+  void _shareProgress(BuildContext context, CaloriesTrackerModel model) {
+    final progress = '''🔥 My Nutrition Progress
+
+📅 Today: ${model.dailyCalories.round()}/${model.calorieGoal.round()} calories
+📊 Goal Hit Rate: ${model.goalHitPercentage.round()}%
+🥗 Meals Today: ${model.todaysMeals.length}
+
+💪 Protein: ${model.dailyProtein.round()}/${model.proteinGoal.round()}g
+🌾 Carbs: ${model.dailyCarbs.round()}/${model.carbsGoal.round()}g
+🥑 Fat: ${model.dailyFat.round()}/${model.fatGoal.round()}g
+
+#nutrition #health #tracking''';
     
-    if (dateOnly == today) return 'Today';
-    if (dateOnly == yesterday) return 'Yesterday';
-    
-    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
+    Clipboard.setData(ClipboardData(text: progress));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Progress copied to clipboard'))
+    );
   }
 
+  void _showGoalDetails(BuildContext context, CaloriesTrackerModel model) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Your Goals'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _GoalRow(label: 'Calories', current: model.dailyCalories, goal: model.calorieGoal, unit: 'kcal'),
+            _GoalRow(label: 'Protein', current: model.dailyProtein, goal: model.proteinGoal, unit: 'g'),
+            _GoalRow(label: 'Carbs', current: model.dailyCarbs, goal: model.carbsGoal, unit: 'g'),
+            _GoalRow(label: 'Fat', current: model.dailyFat, goal: model.fatGoal, unit: 'g'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
-extension on CaloriesTrackerModel {
-  void _updateDailyTotals() {
-    dailyCalories = todaysMeals.fold(0, (sum, meal) => sum + meal.calories);
-    dailyProtein = todaysMeals.fold(0, (sum, meal) => sum + meal.protein);
-    dailyCarbs = todaysMeals.fold(0, (sum, meal) => sum + meal.carbs);
-    dailyFat = todaysMeals.fold(0, (sum, meal) => sum + meal.fat);
+  void _confirmDeleteMeal(BuildContext context, CaloriesTrackerModel model, int index) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Meal'),
+        content: const Text('Are you sure you want to remove this meal from today?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              model.removeMeal(index);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Meal deleted'))
+              );
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Chart Widget
+class _WeeklyCaloriesChart extends StatelessWidget {
+  final List<Map<String, dynamic>> data;
+  
+  const _WeeklyCaloriesChart({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text('No data available', style: Theme.of(context).textTheme.bodyMedium),
+      );
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: data.isNotEmpty ? data.map((d) => (d['goal'] as double)).reduce((a, b) => a > b ? a : b) * 1.2 : 3000,
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 && value.toInt() < data.length) {
+                  return Text(
+                    data[value.toInt()]['day'] as String,
+                    style: const TextStyle(fontSize: 12),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: data.asMap().entries.map((entry) {
+          final index = entry.key;
+          final dayData = entry.value;
+          final calories = dayData['calories'] as double;
+          final goal = dayData['goal'] as double;
+          
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: calories,
+                color: calories >= goal * 0.8 ? Colors.green : Colors.orange,
+                width: 16,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 
@@ -709,6 +735,129 @@ class _MealCard extends StatelessWidget {
   }
 }
 
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 8),
+                Text(title, style: Theme.of(context).textTheme.labelMedium),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            )),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NutrientCard extends StatelessWidget {
+  final String label;
+  final int value;
+  final int goal;
+  final String unit;
+  final Color color;
+
+  const _NutrientCard({
+    required this.label,
+    required this.value,
+    required this.goal,
+    required this.unit,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = goal > 0 ? (value / goal * 100).round() : 0;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 4),
+            Text('$value$unit', style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            )),
+            Text('of $goal$unit', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: (value / goal).clamp(0.0, 1.0),
+              backgroundColor: color.withOpacity(0.2),
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+            const SizedBox(height: 4),
+            Text('$percentage%', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalsSummaryCard extends StatelessWidget {
+  final CaloriesTrackerModel model;
+
+  const _GoalsSummaryCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.track_changes, color: Colors.green, size: 16),
+                const SizedBox(width: 4),
+                Text('Goals', style: Theme.of(context).textTheme.labelMedium),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('${model.calorieGoal.round()}', style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            )),
+            Text('kcal target', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text('${model.goalHitDays}/${model.totalTrackedDays} days hit', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StatColumn extends StatelessWidget {
   final String label;
   final String value;
@@ -726,6 +875,23 @@ class _StatColumn extends StatelessWidget {
   }
 }
 
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _QuickActionCard({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(onTap: onTap, child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(children: [Icon(icon, size: 28), const SizedBox(height: 8), Text(label, textAlign: TextAlign.center)]),
+      )),
+    );
+  }
+}
+
 class _NutrientInfo extends StatelessWidget {
   final String label;
   final String value;
@@ -736,14 +902,7 @@ class _NutrientInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      Container(
-        padding: const EdgeInsets.all(8), 
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1), 
-          borderRadius: BorderRadius.circular(8)
-        ), 
-        child: Icon(Icons.circle, color: color, size: 16)
-      ),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.circle, color: color, size: 16)),
       const SizedBox(height: 6),
       Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
       Text('$label ($unit)', style: Theme.of(context).textTheme.bodySmall),
@@ -751,43 +910,42 @@ class _NutrientInfo extends StatelessWidget {
   }
 }
 
-class _MiniProgressBar extends StatelessWidget {
+class _GoalRow extends StatelessWidget {
   final String label;
   final double current;
   final double goal;
-  final Color color;
-  
-  const _MiniProgressBar({
+  final String unit;
+
+  const _GoalRow({
     required this.label,
     required this.current,
     required this.goal,
-    required this.color,
+    required this.unit,
   });
 
   @override
   Widget build(BuildContext context) {
-    final progress = goal > 0 ? (current / goal).clamp(0.0, 1.0) : 0.0;
+    final percentage = goal > 0 ? (current / goal * 100).round() : 0;
     
-    return Column(
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 4),
-        LinearProgressIndicator(
-          value: progress,
-          backgroundColor: color.withOpacity(0.2),
-          valueColor: AlwaysStoppedAnimation(color),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          '${(progress * 100).round()}%',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontSize: 10,
-          ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text('${current.round()}/${goal.round()}$unit ($percentage%)'),
+        ],
+      ),
     );
+  }
+}
+
+extension on CaloriesTrackerModel {
+  // ignore: unused_element
+  void _updateDailyTotals() {
+    dailyCalories = todaysMeals.fold(0, (sum, meal) => sum + meal.calories);
+    dailyProtein = todaysMeals.fold(0, (sum, meal) => sum + meal.protein);
+    dailyCarbs = todaysMeals.fold(0, (sum, meal) => sum + meal.carbs);
+    dailyFat = todaysMeals.fold(0, (sum, meal) => sum + meal.fat);
   }
 }
