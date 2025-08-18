@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'models/calories_tracker_model.dart';
 import 'widgets/auth_wrapper.dart';
 import 'screens/auth_screen.dart';
-import 'screens/main_page.dart';
+import 'screens/main_screen.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();

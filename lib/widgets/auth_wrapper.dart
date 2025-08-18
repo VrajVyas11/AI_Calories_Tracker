@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/calories_tracker_model.dart';
 import '../screens/auth_screen.dart';
 import '../screens/onboarding_screen.dart';
-import '../screens/main_page.dart';
+import '../screens/main_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});

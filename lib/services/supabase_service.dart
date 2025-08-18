@@ -587,6 +587,292 @@ class SupabaseService {
     await prefs.remove('access_token');
     await prefs.remove('user_id');
   }
+
+  // Method to update user profile information
+  static Future<bool> updateUserProfile({
+    String? fullName,
+    String? email,
+  }) async {
+    if (!await isAuthenticated()) return false;
+
+    try {
+      final Map<String, dynamic> updateData = {};
+      
+      if (fullName != null && fullName.isNotEmpty) {
+        updateData['full_name'] = fullName;
+      }
+      
+      if (email != null && email.isNotEmpty) {
+        updateData['email'] = email;
+      }
+
+      if (updateData.isEmpty) return true; // Nothing to update
+
+      updateData['updated_at'] = DateTime.now().toIso8601String();
+
+      final response = await http.patch(
+        Uri.parse('$_url/rest/v1/user_profiles?id=eq.$_userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode(updateData),
+      );
+
+      if (kDebugMode) {
+        print('Update user profile status: ${response.statusCode}');
+        print('Update user profile body: ${response.body}');
+      }
+
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Update user profile error: $e');
+      return false;
+    }
+  }
+
+  // Method to change password
+  static Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (!await isAuthenticated()) return false;
+
+    try {
+      // First verify current password by attempting to sign in
+      final verifyResponse = await http.post(
+        Uri.parse('$_url/auth/v1/token?grant_type=password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _anonKey,
+        },
+        body: jsonEncode({
+          'email': await _getCurrentUserEmail(),
+          'password': currentPassword,
+        }),
+      );
+
+      if (verifyResponse.statusCode != 200) {
+        return false; // Current password is incorrect
+      }
+
+      // Update password using Supabase auth API
+      final response = await http.put(
+        Uri.parse('$_url/auth/v1/user'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'password': newPassword,
+        }),
+      );
+
+      if (kDebugMode) {
+        print('Change password status: ${response.statusCode}');
+        print('Change password body: ${response.body}');
+      }
+
+      return response.statusCode == 200;
+    } catch (e) {
+      if (kDebugMode) print('Change password error: $e');
+      return false;
+    }
+  }
+
+  // Helper method to get current user's email
+  static Future<String?> _getCurrentUserEmail() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_url/auth/v1/user'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data['email'] as String?;
+      }
+    } catch (e) {
+      if (kDebugMode) print('Get current user email error: $e');
+    }
+    return null;
+  }
+
+  // Method to delete user account
+  static Future<bool> deleteAccount() async {
+    if (!await isAuthenticated()) return false;
+
+    try {
+      // First delete all user data
+      await _deleteAllUserData();
+
+      // Then delete the user account
+      final response = await http.delete(
+        Uri.parse('$_url/auth/v1/admin/users/$_userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      if (kDebugMode) {
+        print('Delete account status: ${response.statusCode}');
+        print('Delete account body: ${response.body}');
+      }
+
+      if (response.statusCode == 200) {
+        await signOut(); // Clear local auth data
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      if (kDebugMode) print('Delete account error: $e');
+      return false;
+    }
+  }
+
+  // Helper method to delete all user data
+  static Future<void> _deleteAllUserData() async {
+    try {
+      // Delete meals
+      await http.delete(
+        Uri.parse('$_url/rest/v1/meals?user_id=eq.$_userId'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      // Delete nutrition cache
+      await http.delete(
+        Uri.parse('$_url/rest/v1/nutrition_cache?user_id=eq.$_userId'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      // Delete user profile
+      await http.delete(
+        Uri.parse('$_url/rest/v1/user_profiles?id=eq.$_userId'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+    } catch (e) {
+      if (kDebugMode) print('Delete user data error: $e');
+    }
+  }
+
+  // Method to export user data
+  static Future<Map<String, dynamic>?> exportUserData() async {
+    if (!await isAuthenticated()) return null;
+
+    try {
+      final profile = await getUserProfile();
+      final meals = await getMealsForDateRange(
+        DateTime.now().subtract(const Duration(days: 365)), // Last year
+        DateTime.now(),
+      );
+
+      return {
+        'profile': profile?.toJson(),
+        'meals': meals.map((meal) => meal.toJson()).toList(),
+        'export_date': DateTime.now().toIso8601String(),
+        'total_meals': meals.length,
+      };
+    } catch (e) {
+      if (kDebugMode) print('Export user data error: $e');
+      return null;
+    }
+  }
+
+  // Method to get user statistics
+  static Future<Map<String, dynamic>> getUserStatistics({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    if (!await isAuthenticated()) return {};
+
+    try {
+      final meals = await getMealsForDateRange(startDate, endDate);
+      final dailySummaries = await getDailySummaries(startDate, endDate);
+
+      double totalCalories = 0;
+      double totalProtein = 0;
+      double totalCarbs = 0;
+      double totalFat = 0;
+      int totalMeals = meals.length;
+
+      for (final meal in meals) {
+        totalCalories += meal.calories;
+        totalProtein += meal.protein;
+        totalCarbs += meal.carbs;
+        totalFat += meal.fat;
+      }
+
+      final activeDays = dailySummaries.length;
+      final avgCaloriesPerDay = activeDays > 0 ? totalCalories / activeDays : 0;
+      final avgMealsPerDay = activeDays > 0 ? totalMeals / activeDays : 0;
+
+      return {
+        'total_calories': totalCalories,
+        'total_protein': totalProtein,
+        'total_carbs': totalCarbs,
+        'total_fat': totalFat,
+        'total_meals': totalMeals,
+        'active_days': activeDays,
+        'avg_calories_per_day': avgCaloriesPerDay,
+        'avg_meals_per_day': avgMealsPerDay,
+        'date_range': {
+          'start': startDate.toIso8601String(),
+          'end': endDate.toIso8601String(),
+        },
+      };
+    } catch (e) {
+      if (kDebugMode) print('Get user statistics error: $e');
+      return {};
+    }
+  }
+
+  // Method to reset user goals to defaults
+  static Future<bool> resetGoalsToDefaults() async {
+    return await updateGoals(2000.0, 150.0, 250.0, 67.0);
+  }
+
+  // Method to validate session token
+  static Future<bool> validateSession() async {
+    if (_accessToken == null) return false;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$_url/auth/v1/user'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        // Token is invalid, clear auth data
+        await signOut();
+        return false;
+      }
+    } catch (e) {
+      if (kDebugMode) print('Validate session error: $e');
+      return false;
+    }
+  }
 }
 
 class AuthResult {
@@ -603,4 +889,5 @@ class AuthResult {
     this.createdButNotAuthenticated = false,
     this.message,
   });
+
 }
