@@ -19,14 +19,14 @@ A lightweight Flutter app that recognizes foods from photos (Clarifai), fetches 
 ## Table of Contents
 
 - 🔧 Quick Start
-- 🧩 Features
+- 🧩 Features (updated)
 - 🏗 Architecture & Important Files
 - 🔐 Configuration (.env & CI)
 - 🚀 Run: Dev vs Production
 - 🧠 How recognition & nutrition flow works
 - 🛠 Troubleshooting & Tips
 - 🧪 Testing & CI
-- ✨ Roadmap
+- ✨ Roadmap / TODOs
 - 🤝 Contributing
 - 📄 License & Credits
 
@@ -36,8 +36,8 @@ A lightweight Flutter app that recognizes foods from photos (Clarifai), fetches 
 
 1. Clone:
 ```bash
-git clone <repo-url>
-cd ai_meal_planner
+git clone https://github.com/VrajVyas11/AI_Calories_Tracker.git
+cd AI_Calories_Tracker
 ```
 
 2. Install dependencies:
@@ -71,7 +71,7 @@ flutter run
 
 ---
 
-## 🧩 Features
+## 🧩 Features (updated)
 
 - Food recognition via Clarifai (image -> labels + confidence).
 - Nutrition lookup via USDA FoodData Central (per-100g data).
@@ -80,28 +80,51 @@ flutter run
 - Persist meals to Supabase (per-user) and local state update.
 - Offline fallbacks: simple recognition heuristics and estimated nutrition map.
 - Non-blocking notifications (SnackBar) for sign-in and operations.
-- Global scaffold messenger to avoid context issues when showing snackbars.
+- Global scaffold messenger to avoid context issues when showing SnackBars.
+- New: Account settings UI allowing users to:
+  - Change full display name (in-app, triggers onUserUpdated)
+  - Update nutrition goals (daily calories, protein, carbs, fat) — updates persisted via SupabaseService.updateGoals
+  - Change password UI (validation + placeholder action; backend wiring required)
+  - Export data and Delete account dialogs (UI placeholders)
+- New: Activity screen with:
+  - Recent Meals (meal cards with image, names, timestamp, and nutrient chips)
+  - Statistics (daily summaries, totals, averages, daily breakdown)
+  - Time-range selector (7 / 30 days)
+  - Pull-to-refresh and resilient loading / error handling
+- Improved: User profile sheet (bottom sheet)
+  - Robust, scrollable layout to fix overflow issues
+  - Avatar, joined date, quick navigation to Account Settings & Activity
+  - Quick stats display of goals (calories, protein, carbs, fat)
+  - Sign-out flow and Help dialog
 
 ---
 
 ## 🏗 Architecture & Key Files
 
 - lib/
-  - main.dart — app entry, ScaffoldMessenger key
+  - main.dart — app entrypoint, ScaffoldMessenger key
   - services/
-    - supabase_service.dart — Supabase REST auth, profile, meals, cache
-    - food_recognition_service.dart — Clarifai + USDA + fallbacks
+    - supabase_service.dart — Supabase REST/auth/profile/meals/goals interactions
+    - food_recognition_service.dart — Clarifai + USDA + fallback logic (now removed)
   - models/
-    - calories_tracker_model.dart — Provider state, image analysis, persistence
-    - meal_entry.dart, user_profile.dart — data models
+    - meal_entry.dart — meal model (imageUrl, foodNames, timestamp, calories, protein, carbs, fat)
+    - user_profile.dart — user profile model (id, email, fullName, calorieGoal, proteinGoal, carbsGoal, fatGoal, createdAt, updatedAt, onboardingCompleted)
+    - calories_tracker_model.dart — Provider state (if used)
   - screens/
-    - auth_screen.dart — sign in / sign up (non-blocking SnackBar notifications)
-    - scan_food_page.dart — image picker, analyze, add-to-meal dialog
-    - main_page.dart — tabs: Scan / Dashboard / History
+  - main_page_screens
+      - analytics_page.dart - show analytics of user and graphs
+      - dash_board_page.dart - show dashboard and info 
+    - auth_screen.dart — sign in / sign up flows
+    - scan_food_screen.dart — image picker, analyze, edit and add meal
+    - main_screen.dart — app tabs (Scan / Dashboard / History)
+    - onboarding_screen.dart - first thing user fils up after login
+    - splash_screen.dart - splash screen shown between auth transition
+    - account_settings_screen.dart — full settings UI (name, goals, password, data actions)
+    - activity_screen.dart — Recent Meals & Statistics with charts/lists
   - widgets/
-    - user_profile_sheet.dart — user info and sign out
-- livedemoimages/ — demo images
-- README.md — this file
+    - user_profile_sheet.dart — profile bottom sheet (scrollable, navigation)
+    - auth_wrapper.dart - a wrapper for auth and navigation after auth
+- livedemoimages/ — demo images used in README/demo
 
 ---
 
@@ -129,6 +152,7 @@ The app checks dotenv first, then uses compile-time defines if dotenv isn't pres
 Development:
 - Use `.env` (only locally).
 - Full restart needed after env changes.
+- Run with `flutter run -d <device>`.
 
 Production:
 - Do not bundle `.env`.
@@ -142,7 +166,7 @@ Production:
 2. App encodes the image and sends to Clarifai endpoint.
 3. Clarifai returns labels + confidence.
 4. For each label, the app queries USDA for nutrients (fallback to local map if needed).
-5. Proportion for each item computed as: score = confidence × calories_per_100g → proportion = score / sum(scores).
+5. Proportion for each label computed as: score = confidence × calories_per_100g → proportion = score / sum(scores).
 6. User selects serving grams (G); macros per item = (G × proportion / 100) × macros_per_100g.
 7. When saving, the app ensures `user_profiles` exists, inserts into `meals` table in Supabase, then reloads today's meals.
 
@@ -151,16 +175,17 @@ Production:
 ## 🛠 Troubleshooting & Tips
 
 - If `saveMeal` fails with `404`: ensure `meals` table exists in Supabase.
-- If it fails with `409` (FK): ensure the `user_profiles` row exists or use the app's profile creation flow (app will attempt to create it).
+- If it fails with `409` (FK): ensure the `user_profiles` row exists or use the app's profile creation flow (app attempts to create it).
 - If `.env` not read on device: bundle as asset for dev or use `--dart-define`.
-- Check debug logs: SupabaseService prints `saveMeal status` and `saveMeal body` in debug.
+- Check debug logs: SupabaseService prints useful debug lines (e.g., saveMeal status and body).
+- If you see RenderFlex overflow in bottom sheet: ensure user_profile_sheet is the updated scrollable version.
 
 ---
 
 ## 🧪 Testing & CI
 
 - Unit tests: nutrition parsing, proportion math.
-- Widget tests: scan -> analyze -> add -> persisted meal flows.
+- Widget tests: scan → analyze → add → persisted meal flows; settings update flows.
 - CI suggestions:
   - `flutter analyze`
   - `flutter test`
@@ -168,16 +193,22 @@ Production:
 
 ---
 
-## ✨ Roadmap
+## ✨ Roadmap / TODOs
 
-Short-term:
-- Manual edit of detected items and portion split UI.
-- Barcode lookup for packaged foods.
+Implemented:
+- Profile sheet UI (scrollable; avatar, joined date)
+- ActivityScreen: recent meals + statistics, time-range selectors
+- AccountSettingsScreen: edit name, edit goals, change password UI, export & delete account dialogs
+- Goals persistence: SupabaseService.updateGoals called from UI
 
-Long-term:
-- On-device model (TF Lite) for offline recognition.
-- Cross-device sync & background sync.
-- Health integrations (Google Fit / Apple Health).
+Follow-ups to implement (priority):
+- Wire change password to Supabase / email provider (secure flow + re-auth where needed)
+- Implement export data (CSV export & sharing)
+- Implement delete account backend flow (Supabase delete + clean local state)
+- Add form input validation and more user-friendly error messages
+- Add charts for trends (calories over time) in ActivityScreen
+- Add tests for AccountSettingsScreen and ActivityScreen flows
+- Improve accessibility (larger tappable areas, labels)
 
 ---
 
@@ -247,7 +278,8 @@ create policy "nutrition_cache_user_policy" on public.nutrition_cache
 - Fork → create branch → make changes → open PR.
 - Add tests for new features.
 - Keep secrets out of commits.
-- Use clear commit messages; see project Git history for examples.
+- Use clear commit messages. Example of recent commit message used internally:
+  - "feat(profile & settings): add AccountSettingsScreen, ActivityScreen, and improved UserProfileSheet; wire goals persistence"
 
 ---
 
