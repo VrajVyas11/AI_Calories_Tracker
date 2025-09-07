@@ -1,5 +1,4 @@
 // lib/services/supabase_service.dart
-// ignore_for_file: unused_local_variable
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -292,8 +291,8 @@ class SupabaseService {
     if (!await isAuthenticated()) return [];
 
     try {
-      final startStr = startDate.toIso8601String().substring(0, 10);
-      final endStr = endDate.toIso8601String().substring(0, 10);
+      // final startStr = startDate.toIso8601String().substring(0, 10);
+      // final endStr = endDate.toIso8601String().substring(0, 10);
       
       // Get all meals in date range and group by date
       final meals = await getMealsForDateRange(startDate, endDate);

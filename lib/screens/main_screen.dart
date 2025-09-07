@@ -1,5 +1,4 @@
 // lib/screens/main_page.dart
-// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member, deprecated_member_use
 import 'package:ai_calories_tracker/models/calories_tracker_model.dart';
 import 'package:ai_calories_tracker/screens/main_page_screens/analytics_page.dart';
 import 'package:ai_calories_tracker/screens/main_page_screens/dash_board_page.dart';
