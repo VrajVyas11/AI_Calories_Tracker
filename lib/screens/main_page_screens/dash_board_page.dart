@@ -1,10 +1,7 @@
-// lib/screens/main_page_screens/dash_board_page.dart
 import 'package:ai_calories_tracker/models/calories_tracker_model.dart';
 import 'package:ai_calories_tracker/models/meal_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-/// ------------------ DashboardPage ------------------
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -17,7 +14,6 @@ class DashboardPage extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          // Progress row
           Row(
             children: [
               Expanded(
@@ -68,13 +64,12 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // Today's Meals header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text("Today's Meals", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
               TextButton.icon(
-                onPressed: () => _showGoalsDialog(context),
+                onPressed: () => _showEnhancedGoalsDialog(context),
                 icon: const Icon(Icons.tune),
                 label: const Text('Goals'),
               ),
@@ -106,51 +101,134 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  void _showGoalsDialog(BuildContext context) {
+  void _showEnhancedGoalsDialog(BuildContext context) {
     final model = context.read<CaloriesTrackerModel>();
     final calorieController = TextEditingController(text: (model.currentUser?.calorieGoal ?? 2000).toString());
     final proteinController = TextEditingController(text: (model.currentUser?.proteinGoal ?? 150).toString());
     final carbsController = TextEditingController(text: (model.currentUser?.carbsGoal ?? 250).toString());
     final fatController = TextEditingController(text: (model.currentUser?.fatGoal ?? 67).toString());
 
+    String selectedGoalType = 'daily';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Set Daily Goals'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(controller: calorieController, decoration: const InputDecoration(labelText: 'Calories (kcal)')),
-              const SizedBox(height: 8),
-              TextField(controller: proteinController, decoration: const InputDecoration(labelText: 'Protein (g)')),
-              const SizedBox(height: 8),
-              TextField(controller: carbsController, decoration: const InputDecoration(labelText: 'Carbs (g)')),
-              const SizedBox(height: 8),
-              TextField(controller: fatController, decoration: const InputDecoration(labelText: 'Fat (g)')),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Set Nutrition Goals'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedGoalType,
+                  onChanged: (value) => setState(() => selectedGoalType = value!),
+                  items: const [
+                    DropdownMenuItem(value: 'daily', child: Text('Daily Goals')),
+                    DropdownMenuItem(value: 'weekly', child: Text('Weekly Goals')),
+                    DropdownMenuItem(value: 'monthly', child: Text('Monthly Goals')),
+                    DropdownMenuItem(value: 'custom', child: Text('Custom Period')),
+                  ],
+                  decoration: const InputDecoration(labelText: 'Goal Period'),
+                ),
+                const SizedBox(height: 16),
+                
+                TextField(
+                  controller: calorieController,
+                  decoration: const InputDecoration(
+                    labelText: 'Calories (kcal)',
+                    suffixText: 'kcal',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: proteinController,
+                  decoration: const InputDecoration(
+                    labelText: 'Protein (g)',
+                    suffixText: 'g',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: carbsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Carbs (g)',
+                    suffixText: 'g',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: fatController,
+                  decoration: const InputDecoration(
+                    labelText: 'Fat (g)',
+                    suffixText: 'g',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              final calories = double.tryParse(calorieController.text) ?? (model.currentUser?.calorieGoal ?? 2000);
-              final protein = double.tryParse(proteinController.text) ?? (model.currentUser?.proteinGoal ?? 150);
-              final carbs = double.tryParse(carbsController.text) ?? (model.currentUser?.carbsGoal ?? 250);
-              final fat = double.tryParse(fatController.text) ?? (model.currentUser?.fatGoal ?? 67);
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final calories = double.tryParse(calorieController.text) ?? (model.currentUser?.calorieGoal ?? 2000);
+                final protein = double.tryParse(proteinController.text) ?? (model.currentUser?.proteinGoal ?? 150);
+                final carbs = double.tryParse(carbsController.text) ?? (model.currentUser?.carbsGoal ?? 250);
+                final fat = double.tryParse(fatController.text) ?? (model.currentUser?.fatGoal ?? 67);
 
-              model.updateGoals(calories: calories, protein: protein, carbs: carbs, fat: fat);
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+                final adjustedGoals = _adjustGoalsForPeriod(
+                  calories, protein, carbs, fat, selectedGoalType,
+                );
+
+                model.updateGoals(
+                  calories: adjustedGoals['calories'],
+                  protein: adjustedGoals['protein'],
+                  carbs: adjustedGoals['carbs'],
+                  fat: adjustedGoals['fat'],
+                );
+                Navigator.pop(context);
+              },
+              child: const Text('Save Goals'),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Map<String, double> _adjustGoalsForPeriod(
+    double calories, double protein, double carbs, double fat, String period) {
+    switch (period) {
+      case 'weekly':
+        return {
+          'calories': calories * 7,
+          'protein': protein * 7,
+          'carbs': carbs * 7,
+          'fat': fat * 7,
+        };
+      case 'monthly':
+        return {
+          'calories': calories * 30,
+          'protein': protein * 30,
+          'carbs': carbs * 30,
+          'fat': fat * 30,
+        };
+      default:
+        return {
+          'calories': calories,
+          'protein': protein,
+          'carbs': carbs,
+          'fat': fat,
+        };
+    }
+  }
 }
-
-
 
 class _ProgressCard extends StatelessWidget {
   final String label;
@@ -180,9 +258,6 @@ class _ProgressCard extends StatelessWidget {
     );
   }
 }
-
-
-/// Small UI components
 
 class _MealCard extends StatelessWidget {
   final MealEntry meal;
@@ -228,4 +303,3 @@ class _MealCard extends StatelessWidget {
     ));
   }
 }
-

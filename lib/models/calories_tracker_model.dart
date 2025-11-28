@@ -54,7 +54,7 @@ class CaloriesTrackerModel extends ChangeNotifier {
       monthlyData = [];
       _updateDailyTotals();
     }
-    
+
     isCheckingAuth = false;
     notifyListeners();
   }
@@ -79,31 +79,32 @@ class CaloriesTrackerModel extends ChangeNotifier {
 
   Future<void> _loadAnalyticsData() async {
     if (!isAuthenticated) return;
-    
+
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
     final monthAgo = now.subtract(const Duration(days: 30));
-    
+
     // Load weekly data
     weeklyData = await SupabaseService.getDailySummaries(weekAgo, now);
-    
+
     // Load monthly data
     monthlyData = await SupabaseService.getDailySummaries(monthAgo, now);
-    
+
     // Calculate goal hit days
     _calculateGoalStatistics();
-    
+
     notifyListeners();
   }
 
   void _calculateGoalStatistics() {
     goalHitDays = 0;
     totalTrackedDays = monthlyData.length;
-    
+
     for (final day in monthlyData) {
       final calories = (day['total_calories'] as num?)?.toDouble() ?? 0;
-      final calorieGoalHit = calories >= (calorieGoal * 0.8) && calories <= (calorieGoal * 1.2);
-      
+      final calorieGoalHit =
+          calories >= (calorieGoal * 0.8) && calories <= (calorieGoal * 1.2);
+
       if (calorieGoalHit) {
         goalHitDays++;
       }
@@ -151,9 +152,16 @@ class CaloriesTrackerModel extends ChangeNotifier {
             );
           } else {
             nutrition = await FoodRecognitionService.getNutritionData(r.name);
-            if (nutrition != null) await SupabaseService.cacheNutritionData(r.name, nutrition.toJson());
+            if (nutrition != null)
+              await SupabaseService.cacheNutritionData(
+                  r.name, nutrition.toJson());
           }
-          final foodItem = FoodItem(name: r.name, confidence: r.confidence, nutrition: nutrition != null ? NutritionInfo.fromNutritionData(nutrition) : null);
+          final foodItem = FoodItem(
+              name: r.name,
+              confidence: r.confidence,
+              nutrition: nutrition != null
+                  ? NutritionInfo.fromNutritionData(nutrition)
+                  : null);
           items.add(foodItem);
         }
         detectedFoods = items;
@@ -174,12 +182,39 @@ class CaloriesTrackerModel extends ChangeNotifier {
 
   void _calculateFoodProportions() {
     if (detectedFoods.isEmpty) return;
+
     double totalScore = 0;
     for (var f in detectedFoods) {
-      final cals = f.nutrition?.calories ?? 100.0;
-      f.nutritionScore = f.confidence * cals;
+      // Use confidence as base, but adjust for food type
+      final baseConfidence = f.confidence;
+
+      // Food type adjustment - some foods are more likely to be main components
+      double typeMultiplier = 1.0;
+      final lowerName = f.name.toLowerCase();
+
+      if (lowerName.contains('chicken') ||
+          lowerName.contains('beef') ||
+          lowerName.contains('fish') ||
+          lowerName.contains('meat')) {
+        typeMultiplier = 1.5;
+      } else if (lowerName.contains('rice') ||
+          lowerName.contains('pasta') ||
+          lowerName.contains('bread') ||
+          lowerName.contains('potato')) {
+        typeMultiplier = 1.3;
+      } else if (lowerName.contains('salad') ||
+          lowerName.contains('vegetable') ||
+          lowerName.contains('fruit')) {
+        typeMultiplier = 0.7;
+      } else if (lowerName.contains('sauce') ||
+          lowerName.contains('dressing')) {
+        typeMultiplier = 0.5;
+      }
+
+      f.nutritionScore = baseConfidence * typeMultiplier;
       totalScore += f.nutritionScore ?? 0;
     }
+
     if (totalScore <= 0) {
       final each = 1.0 / detectedFoods.length;
       for (var f in detectedFoods) {
@@ -187,9 +222,11 @@ class CaloriesTrackerModel extends ChangeNotifier {
       }
       return;
     }
+
     for (var f in detectedFoods) {
       f.proportion = (f.nutritionScore ?? 0) / totalScore;
     }
+
     final sum = detectedFoods.fold(0.0, (s, f) => s + (f.proportion ?? 0));
     if (sum > 0) {
       for (var f in detectedFoods) {
@@ -217,7 +254,8 @@ class CaloriesTrackerModel extends ChangeNotifier {
         'carbs': totalCarbs.round(),
         'fat': totalFat.round(),
       },
-      'serving_info': "Values shown are weighted by food proportions (per 100g basis)",
+      'serving_info':
+          "Values shown are weighted by food proportions (per 100g basis)",
     };
   }
 
@@ -230,7 +268,8 @@ class CaloriesTrackerModel extends ChangeNotifier {
   }) async {
     if (!isAuthenticated) return false;
 
-    final success = await SupabaseService.completeOnboarding(calories, protein, carbs, fat);
+    final success =
+        await SupabaseService.completeOnboarding(calories, protein, carbs, fat);
     if (success) {
       currentUser = await SupabaseService.getUserProfile();
       notifyListeners();
@@ -239,7 +278,6 @@ class CaloriesTrackerModel extends ChangeNotifier {
     return false;
   }
 
-  /// Add to meal log. Ensures user_profile exists and retries once if FK caused failure.
   Future<bool> addToMealLog({required double servingMultiplier}) async {
     if (detectedFoods.isEmpty) return false;
     isAuthenticated = await SupabaseService.isAuthenticated();
@@ -247,15 +285,33 @@ class CaloriesTrackerModel extends ChangeNotifier {
 
     double totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
     final foodNames = <String>[];
+
     for (var food in detectedFoods) {
       foodNames.add(food.name);
       if (food.nutrition != null && food.proportion != null) {
-        final factor = food.proportion! * servingMultiplier;
-        totalCalories += food.nutrition!.calories * factor;
-        totalProtein += food.nutrition!.protein * factor;
-        totalCarbs += food.nutrition!.carbs * factor;
-        totalFat += food.nutrition!.fat * factor;
+        // Use improved calculation with density-based adjustment
+        final densityFactor = _getFoodDensityFactor(food.name);
+
+        // More realistic calculation: account for food density and portion size
+        final adjustedMultiplier =
+            servingMultiplier * food.proportion! * densityFactor;
+
+        totalCalories += food.nutrition!.calories * adjustedMultiplier;
+        totalProtein += food.nutrition!.protein * adjustedMultiplier;
+        totalCarbs += food.nutrition!.carbs * adjustedMultiplier;
+        totalFat += food.nutrition!.fat * adjustedMultiplier;
       }
+    }
+
+    // Apply realistic limits - no single meal should have insane calories
+    final maxReasonableCalories = 3000;
+    if (totalCalories > maxReasonableCalories) {
+      // Scale down proportionally if calories are too high
+      final scaleFactor = maxReasonableCalories / totalCalories;
+      totalCalories *= scaleFactor;
+      totalProtein *= scaleFactor;
+      totalCarbs *= scaleFactor;
+      totalFat *= scaleFactor;
     }
 
     final meal = MealEntry(
@@ -273,7 +329,7 @@ class CaloriesTrackerModel extends ChangeNotifier {
     var success = await SupabaseService.saveMeal(meal);
     if (success) {
       await _loadTodaysData();
-      await _loadAnalyticsData(); // Refresh analytics after new meal
+      await _loadAnalyticsData();
       notifyListeners();
       return true;
     }
@@ -290,11 +346,57 @@ class CaloriesTrackerModel extends ChangeNotifier {
       }
     }
 
-    // failed
     return false;
   }
 
-  Future<void> updateGoals({double? calories, double? protein, double? carbs, double? fat}) async {
+  double _getFoodDensityFactor(String foodName) {
+    final lower = foodName.toLowerCase();
+
+    // High density foods (proteins, nuts, cheeses)
+    if (lower.contains('chicken') ||
+        lower.contains('beef') ||
+        lower.contains('pork') ||
+        lower.contains('fish') ||
+        lower.contains('nut') ||
+        lower.contains('cheese') ||
+        lower.contains('meat')) {
+      return 1.2;
+    }
+
+    // Medium density (grains, breads)
+    if (lower.contains('bread') ||
+        lower.contains('rice') ||
+        lower.contains('pasta') ||
+        lower.contains('potato') ||
+        lower.contains('bean') ||
+        lower.contains('grain')) {
+      return 0.9;
+    }
+
+    // Low density (vegetables, fruits)
+    if (lower.contains('salad') ||
+        lower.contains('vegetable') ||
+        lower.contains('fruit') ||
+        lower.contains('berry') ||
+        lower.contains('leaf') ||
+        lower.contains('lettuce')) {
+      return 0.6;
+    }
+
+    // Liquids and sauces
+    if (lower.contains('soup') ||
+        lower.contains('sauce') ||
+        lower.contains('drink') ||
+        lower.contains('juice') ||
+        lower.contains('water')) {
+      return 1.0;
+    }
+
+    return 0.8;
+  }
+
+  Future<void> updateGoals(
+      {double? calories, double? protein, double? carbs, double? fat}) async {
     if (!isAuthenticated) return;
     final success = await SupabaseService.updateGoals(
       calories ?? currentUser?.calorieGoal ?? 2000,
@@ -321,7 +423,8 @@ class CaloriesTrackerModel extends ChangeNotifier {
     }
   }
 
-  Future<List<MealEntry>> getMealsForDateRange(DateTime start, DateTime end) async {
+  Future<List<MealEntry>> getMealsForDateRange(
+      DateTime start, DateTime end) async {
     if (!isAuthenticated) return [];
     return await SupabaseService.getMealsForDateRange(start, end);
   }
@@ -354,7 +457,7 @@ class CaloriesTrackerModel extends ChangeNotifier {
     }
 
     double totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
-    
+
     for (final day in monthlyData) {
       totalCalories += (day['total_calories'] as num?)?.toDouble() ?? 0;
       totalProtein += (day['total_protein'] as num?)?.toDouble() ?? 0;
@@ -379,9 +482,19 @@ class FoodItem {
   double? proportion;
   double? nutritionScore;
 
-  FoodItem({required this.name, required this.confidence, this.nutrition, this.proportion, this.nutritionScore});
+  FoodItem(
+      {required this.name,
+      required this.confidence,
+      this.nutrition,
+      this.proportion,
+      this.nutritionScore});
   void updateNutrition(NutritionInfo ni) => nutrition = ni;
-  Map<String, dynamic> toJson() => {'name': name, 'confidence': confidence, 'proportion': proportion, 'nutrition': nutrition?.toJson()};
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'confidence': confidence,
+        'proportion': proportion,
+        'nutrition': nutrition?.toJson()
+      };
 }
 
 class NutritionInfo {
@@ -392,9 +505,28 @@ class NutritionInfo {
   double fiber;
   String servingSize;
 
-  NutritionInfo({required this.calories, required this.protein, required this.carbs, required this.fat, required this.fiber, required this.servingSize});
+  NutritionInfo(
+      {required this.calories,
+      required this.protein,
+      required this.carbs,
+      required this.fat,
+      required this.fiber,
+      required this.servingSize});
 
-  factory NutritionInfo.fromNutritionData(NutritionData d) => NutritionInfo(calories: d.calories, protein: d.protein, carbs: d.carbs, fat: d.fat, fiber: d.fiber, servingSize: d.servingSize);
+  factory NutritionInfo.fromNutritionData(NutritionData d) => NutritionInfo(
+      calories: d.calories,
+      protein: d.protein,
+      carbs: d.carbs,
+      fat: d.fat,
+      fiber: d.fiber,
+      servingSize: d.servingSize);
 
-  Map<String, dynamic> toJson() => {'calories': calories, 'protein': protein, 'carbs': carbs, 'fat': fat, 'fiber': fiber, 'serving_size': servingSize};
+  Map<String, dynamic> toJson() => {
+        'calories': calories,
+        'protein': protein,
+        'carbs': carbs,
+        'fat': fat,
+        'fiber': fiber,
+        'serving_size': servingSize
+      };
 }
